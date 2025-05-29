@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brotherhood 加密通訊 - 第二階段</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #5671e8 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 1100px;
+            height: 800px;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 20px 20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .encryption-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+
+        .encryption-icon {
+            width: 16px;
+            height: 16px;
+            background: #ffc107;
+            border-radius: 50%;
+        }
+
+        .encryption-icon.encrypted {
+            background: #28a745;
+        }
+
+        .connection-section {
+            margin-bottom: 20px;
+        }
+
+        .connection-section h3 {
+            margin-bottom: 10px;
+            color: #495057;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .input-group {
+            margin-bottom: 10px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #1e7e34;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status {
+            padding: 8px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.encrypted {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .online-users {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 150px;
+        }
+
+        .user-item {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: #e9ecef;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-item:hover {
+            background: #dee2e6;
+        }
+
+        .user-item.selected {
+            background: #007bff;
+            color: white;
+        }
+
+        .user-encryption {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffc107;
+        }
+
+        .user-encryption.encrypted {
+            background: #28a745;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            max-width: 70%;
+        }
+
+        .message.sent {
+            margin-left: auto;
+        }
+
+        .message.received {
+            margin-right: auto;
+        }
+
+        .message-content {
+            padding: 10px 15px;
+            border-radius: 20px;
+            word-wrap: break-word;
+        }
+
+        .message.sent .message-content {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+        }
+
+        .message.received .message-content {
+            background: white;
+            border: 1px solid #e9ecef;
+        }
+
+        .message-info {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+            padding: 0 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .encryption-badge {
+            font-size: 10px;
+            background: #28a745;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .message-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 25px;
+            outline: none;
+        }
+
+        .message-input button {
+            padding: 10px 20px;
+            border-radius: 25px;
+        }
+
+        .logs {
+            height: 120px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+
+        .log-entry {
+            margin-bottom: 3px;
+            color: #495057;
+        }
+
+        .log-entry.error {
+            color: #dc3545;
+        }
+
+        .log-entry.success {
+            color: #28a745;
+        }
+
+        .log-entry.crypto {
+            color: #007bff;
+        }
+
+        .crypto-controls {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .key-info {
+            background: #e7f3ff;
+            border: 1px solid #b8daff;
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 11px;
+            margin-bottom: 10px;
+        }
+
+        .key-id {
+            font-family: monospace;
+            color: #495057;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 側邊欄 -->
+        <div class="sidebar">
+            <!-- 連線區域 -->
+            <div class="connection-section">
+                <h3>🔗 連線設定</h3>
+                <div class="input-group">
+                    <input type="text" id="username" placeholder="用戶名稱" value="加密用戶1">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="userId" placeholder="用戶ID" value="enc_user1">
+                </div>
+                <button class="btn btn-primary" id="connectBtn" onclick="connect()">連線</button>
+                <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" style="display:none;">斷線</button>
+                
+                <div id="connectionStatus" class="status disconnected">未連線</div>
+            </div>
+
+            <!-- 加密控制 -->
+            <div class="connection-section">
+                <h3>🔐 加密控制</h3>
+                <div class="crypto-controls">
+                    <button class="btn btn-warning" onclick="initializeCrypto()" id="initCryptoBtn" disabled>初始化加密</button>
+                </div>
+                <div id="encryptionStatus" class="status disconnected">加密未就緒</div>
+                
+                <div id="keyInfo" class="key-info" style="display:none;">
+                    <div>當前密鑰ID:</div>
+                    <div class="key-id" id="currentKeyId">-</div>
+                </div>
+            </div>
+
+            <!-- 線上用戶 -->
+            <div class="connection-section">
+                <h3>👥 線上用戶</h3>
+                <div class="online-users" id="onlineUsers">
+                    <div style="color: #6c757d; font-size: 12px; text-align: center;">尚無線上用戶</div>
+                </div>
+            </div>
+
+            <!-- 日誌 -->
+            <div class="connection-section">
+                <h3>📝 系統日誌</h3>
+                <div class="logs" id="logs"></div>
+            </div>
+        </div>
+
+        <!-- 主聊天區域 -->
+        <div class="main-chat">
+            <div class="chat-header">
+                <span id="chatTitle">Brotherhood 加密通訊 (第二階段)</span>
+                <div class="encryption-status">
+                    <div class="encryption-icon" id="encryptionIcon"></div>
+                    <span id="encryptionText">未加密</span>
+                </div>
+            </div>
+            
+            <div class="messages" id="messages">
+                <div style="text-align: center; color: #6c757d; margin-top: 50px;">
+                    <h3>🔐 歡迎使用 Brotherhood 加密通訊系統</h3>
+                    <p>第二階段：端到端加密功能</p>
+                    <br>
+                    <p>1. 先連線到服務器</p>
+                    <p>2. 初始化加密系統</p>
+                    <p>3. 選擇線上用戶開始加密聊天</p>
+                </div>
+            </div>
+            
+            <div class="message-input">
+                <input type="text" id="messageInput" placeholder="輸入訊息（將自動加密）..." disabled onkeypress="handleEnterKey(event)">
+                <button class="btn btn-success" id="sendBtn" onclick="sendEncryptedMessage()" disabled>🔐 發送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentUser = null;
+        let selectedRecipient = null;
+        let cryptoManager = null;
+        let isEncryptionReady = false;
+
+        // 加密管理器
+        class CryptoManager {
+            constructor() {
+                this.myKeyPair = null; // 我的 ECDH 密鑰對
+                this.sharedSecrets = new Map(); // 與其他用戶的共享密鑰
+                this.publicKeys = new Map(); // 其他用戶的公鑰
+                this.kaclsUrl = this.detectKaclsUrl();
+            }
+
+            // 自動檢測 KACLS URL
+            detectKaclsUrl() {
+                const currentPort = window.location.port;
+                return currentPort === '3001' ? 'http://localhost:3002' : '/api/kacls';
+            }
+
+            // 初始化加密系統 - 生成密鑰對
+            async initialize(userId) {
+                try {
+                    addLog('正在初始化加密系統...', 'crypto');
+                    
+                    // 生成 ECDH 密鑰對
+                    this.myKeyPair = await crypto.subtle.generateKey(
+                        {
+                            name: "ECDH",
+                            namedCurve: "P-256"
+                        },
+                        false, // 不可提取私鑰
+                        ["deriveKey"]
+                    );
+
+                    // 導出公鑰
+                    const publicKeyBuffer = await crypto.subtle.exportKey(
+                        "raw",
+                        this.myKeyPair.publicKey
+                    );
+                    
+                    const publicKeyHex = this.arrayBufferToHex(publicKeyBuffer);
+                    
+                    // 向 KACLS 註冊公鑰
+                    await this.registerPublicKey(userId, publicKeyHex);
+                    
+                    addLog(`🔐 密鑰對生成完成，公鑰已註冊`, 'success');
+                    return true;
+                    
+                } catch (error) {
+                    addLog(`加密初始化失敗: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            // 向 KACLS 註冊公鑰
+            async registerPublicKey(userId, publicKeyHex) {
+                try {
+                    const response = await fetch(`${this.kaclsUrl}/api/register-public-key`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            userId: userId,
+                            publicKey: publicKeyHex,
+                            algorithm: 'ECDH-P256'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`公鑰註冊失敗: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    addLog(`公鑰註冊成功: ${result.keyId}`, 'crypto');
+                    
+                } catch (error) {
+                    addLog(`公鑰註冊失敗: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            // 獲取其他用戶的公鑰
+            async getPublicKey(userId) {
+                try {
+                    if (this.publicKeys.has(userId)) {
+                        return this.publicKeys.get(userId);
+                    }
+
+                    const response = await fetch(`${this.kaclsUrl}/api/get-public-key/${userId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`獲取公鑰失敗: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    // 導入公鑰
+                    const publicKeyBuffer = this.hexToArrayBuffer(result.publicKey);
+                    const publicKey = await crypto.subtle.importKey(
+                        "raw",
+                        publicKeyBuffer,
+                        {
+                            name: "ECDH",
+                            namedCurve: "P-256"
+                        },
+                        false,
+                        []
+                    );
+
+                    this.publicKeys.set(userId, publicKey);
+                    addLog(`獲取用戶 ${userId} 公鑰成功`, 'crypto');
+                    return publicKey;
+                    
+                } catch (error) {
+                    addLog(`獲取公鑰失敗: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            // 生成與特定用戶的共享密鑰
+            async getSharedSecret(otherUserId) {
+                try {
+                    if (this.sharedSecrets.has(otherUserId)) {
+                        return this.sharedSecrets.get(otherUserId);
+                    }
+
+                    // 獲取對方公鑰
+                    const otherPublicKey = await this.getPublicKey(otherUserId);
+
+                    // 執行 ECDH 密鑰交換
+                    const sharedKey = await crypto.subtle.deriveKey(
+                        {
+                            name: "ECDH",
+                            public: otherPublicKey
+                        },
+                        this.myKeyPair.privateKey,
+                        {
+                            name: "AES-GCM",
+                            length: 256
+                        },
+                        false,
+                        ["encrypt", "decrypt"]
+                    );
+
+                    this.sharedSecrets.set(otherUserId, sharedKey);
+                    addLog(`與 ${otherUserId} 的共享密鑰生成完成`, 'crypto');
+                    return sharedKey;
+                    
+                } catch (error) {
+                    addLog(`共享密鑰生成失敗: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            // 加密訊息
+            async encryptMessage(plaintext, recipientId) {
+                try {
+                    // 獲取與收件人的共享密鑰
+                    const sharedKey = await this.getSharedSecret(recipientId);
+                    
+                    // 準備數據
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(plaintext);
+                    
+                    // 生成隨機 IV
+                    const iv = crypto.getRandomValues(new Uint8Array(12)); // GCM 建議 12 bytes
+                    
+                    // 加密數據
+                    const encryptedData = await crypto.subtle.encrypt(
+                        {
+                            name: "AES-GCM",
+                            iv: iv
+                        },
+                        sharedKey,
+                        data
+                    );
+                    
+                    const result = {
+                        encryptedData: this.arrayBufferToHex(encryptedData),
+                        iv: this.arrayBufferToHex(iv),
+                        algorithm: 'ECDH-AES-GCM',
+                        timestamp: Date.now()
+                    };
+                    
+                    addLog(`訊息加密完成 (ECDH)`, 'crypto');
+                    return result;
+                    
+                } catch (error) {
+                    addLog(`訊息加密失敗: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            // 解密訊息
+            async decryptMessage(encryptedMessage, senderId) {
+                try {
+                    const { encryptedData, iv, algorithm } = encryptedMessage;
+                    
+                    if (algorithm !== 'ECDH-AES-GCM') {
+                        throw new Error(`不支持的加密算法: ${algorithm}`);
+                    }
+                    
+                    // 獲取與發送者的共享密鑰
+                    const sharedKey = await this.getSharedSecret(senderId);
+                    
+                    // 解密數據
+                    const decryptedData = await crypto.subtle.decrypt(
+                        {
+                            name: "AES-GCM",
+                            iv: this.hexToArrayBuffer(iv)
+                        },
+                        sharedKey,
+                        this.hexToArrayBuffer(encryptedData)
+                    );
+                    
+                    const decoder = new TextDecoder();
+                    const plaintext = decoder.decode(decryptedData);
+                    
+                    addLog(`訊息解密完成 (ECDH)`, 'crypto');
+                    return plaintext;
+                    
+                } catch (error) {
+                    addLog(`訊息解密失敗: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            // 工具函數
+            hexToArrayBuffer(hex) {
+                const bytes = new Uint8Array(hex.length / 2);
+                for (let i = 0; i < hex.length; i += 2) {
+                    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+                }
+                return bytes.buffer;
+            }
+
+            arrayBufferToHex(buffer) {
+                const bytes = new Uint8Array(buffer);
+                return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+        }
+
+        // 連線到服務器
+        function connect() {
+            const username = document.getElementById('username').value.trim();
+            const userId = document.getElementById('userId').value.trim();
+
+            if (!username || !userId) {
+                addLog('請輸入用戶名稱和ID', 'error');
+                return;
+            }
+
+            // 創建 Socket 連線
+            socket = io('http://localhost:3001');
+
+            // 連線事件
+            socket.on('connect', () => {
+                addLog('連線成功，正在註冊...', 'success');
+                
+                // 註冊用戶
+                socket.emit('register', { username, userId });
+            });
+
+            // 註冊成功
+            socket.on('registerSuccess', (data) => {
+                currentUser = data.user;
+                updateConnectionStatus(true);
+                addLog(`註冊成功：${username}`, 'success');
+                
+                // 啟用訊息輸入和加密初始化
+                document.getElementById('initCryptoBtn').disabled = false;
+            });
+
+            // 新訊息
+            socket.on('newMessage', async (message) => {
+                await handleIncomingMessage(message);
+            });
+
+            // 加密訊息
+            socket.on('encryptedMessage', async (encryptedMessage) => {
+                await handleIncomingEncryptedMessage(encryptedMessage);
+            });
+
+            // 用戶上線
+            socket.on('userOnline', (data) => {
+                addLog(`${data.user.username} 上線了`);
+                updateOnlineUsers();
+            });
+
+            // 用戶離線
+            socket.on('userOffline', (data) => {
+                addLog(`${data.username} 離線了`);
+                updateOnlineUsers();
+            });
+
+            // 訊息送達確認
+            socket.on('messageDelivered', (data) => {
+                addLog(`訊息已送達 (${data.messageId})`, 'success');
+            });
+
+            // 錯誤處理
+            socket.on('error', (error) => {
+                addLog(`錯誤：${error.message}`, 'error');
+            });
+
+            // 斷線
+            socket.on('disconnect', () => {
+                updateConnectionStatus(false);
+                addLog('連線已斷開', 'error');
+                isEncryptionReady = false;
+                updateEncryptionStatus(false);
+            });
+        }
+
+        // 初始化加密系統
+        async function initializeCrypto() {
+            try {
+                if (!currentUser) {
+                    addLog('請先連線', 'error');
+                    return;
+                }
+
+                addLog('正在初始化加密管理器...', 'crypto');
+                
+                cryptoManager = new CryptoManager();
+                await cryptoManager.initialize(currentUser.userId);
+                
+                isEncryptionReady = true;
+                updateEncryptionStatus(true);
+                
+                // 啟用訊息輸入
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                
+                // 顯示密鑰信息 (修復版)
+                document.getElementById('keyInfo').style.display = 'block';
+                // 顯示 ECDH 公鑰指紋而不是 currentKeyId
+                const publicKeyHex = cryptoManager.myKeyPair ? 'ECDH-已生成' : '未生成';
+                document.getElementById('currentKeyId').textContent = `ECDH 密鑰: ${publicKeyHex}`;
+                
+                addLog('🔐 ECDH 加密系統已就緒！可以開始安全通訊', 'success');
+                
+            } catch (error) {
+                addLog(`加密初始化失敗：${error.message}`, 'error');
+                isEncryptionReady = false;
+                updateEncryptionStatus(false);
+            }
+        }
+
+        // 發送加密訊息 - ECDH 版本
+        async function sendEncryptedMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+
+            if (!content) {
+                addLog('訊息內容不能為空', 'error');
+                return;
+            }
+
+            if (!selectedRecipient) {
+                addLog('請選擇接收者', 'error');
+                return;
+            }
+
+            if (!isEncryptionReady || !cryptoManager) {
+                addLog('加密系統未就緒', 'error');
+                return;
+            }
+
+            try {
+                addLog('正在使用 ECDH 加密訊息...', 'crypto');
+                
+                // 使用 ECDH 共享密鑰加密訊息
+                const encryptedMessage = await cryptoManager.encryptMessage(
+                    content, 
+                    selectedRecipient.userId
+                );
+                
+                // 發送加密訊息
+                socket.emit('sendEncryptedMessage', {
+                    recipientId: selectedRecipient.userId,
+                    encryptedContent: encryptedMessage,
+                    messageType: 'encrypted-ecdh'
+                });
+
+                // 添加到本地聊天記錄
+                const message = {
+                    id: Date.now().toString(),
+                    senderId: currentUser.userId,
+                    senderUsername: currentUser.username,
+                    recipientId: selectedRecipient.userId,
+                    content: content,
+                    encrypted: true,
+                    timestamp: new Date()
+                };
+                
+                addMessage(message, 'sent');
+                messageInput.value = '';
+                
+                addLog(`🔐 ECDH 加密訊息已發送給 ${selectedRecipient.username}`, 'success');
+                
+            } catch (error) {
+                addLog(`發送 ECDH 加密訊息失敗：${error.message}`, 'error');
+            }
+        }
+
+        // 處理接收到的加密訊息 - ECDH 版本
+        async function handleIncomingEncryptedMessage(encryptedMessage) {
+            try {
+                if (!isEncryptionReady || !cryptoManager) {
+                    addLog('收到加密訊息，但加密系統未就緒', 'error');
+                    return;
+                }
+
+                addLog('正在使用 ECDH 解密收到的訊息...', 'crypto');
+                
+                // 使用 ECDH 共享密鑰解密訊息
+                const decryptedContent = await cryptoManager.decryptMessage(
+                    encryptedMessage.encryptedContent,
+                    encryptedMessage.senderId
+                );
+                
+                // 創建訊息對象
+                const message = {
+                    id: encryptedMessage.id || Date.now().toString(),
+                    senderId: encryptedMessage.senderId,
+                    senderUsername: encryptedMessage.senderUsername,
+                    content: decryptedContent,
+                    encrypted: true,
+                    timestamp: new Date(encryptedMessage.timestamp)
+                };
+                
+                addMessage(message, 'received');
+                addLog(`🔐 ECDH 訊息解密成功：${encryptedMessage.senderUsername}`, 'success');
+                
+            } catch (error) {
+                addLog(`ECDH 解密失敗：${error.message}`, 'error');
+                
+                // 顯示加密訊息（無法解密）
+                const errorMessage = {
+                    id: Date.now().toString(),
+                    senderId: encryptedMessage.senderId,
+                    senderUsername: encryptedMessage.senderUsername,
+                    content: '[ECDH 加密訊息 - 解密失敗]',
+                    encrypted: true,
+                    error: true,
+                    timestamp: new Date()
+                };
+                
+                addMessage(errorMessage, 'received');
+            }
+        }
+
+        // 處理普通訊息（向後兼容）
+        async function handleIncomingMessage(message) {
+            addMessage({
+                ...message,
+                encrypted: false
+            }, 'received');
+            addLog(`收到訊息：${message.senderUsername}`, 'success');
+        }
+
+        // 斷線
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                currentUser = null;
+                selectedRecipient = null;
+                cryptoManager = null;
+                isEncryptionReady = false;
+                
+                updateConnectionStatus(false);
+                updateEncryptionStatus(false);
+                
+                // 禁用控制項
+                document.getElementById('messageInput').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('initCryptoBtn').disabled = true;
+                
+                // 隱藏密鑰信息
+                document.getElementById('keyInfo').style.display = 'none';
+                
+                // 清空線上用戶
+                document.getElementById('onlineUsers').innerHTML = '<div style="color: #6c757d; font-size: 12px; text-align: center;">尚無線上用戶</div>';
+                
+                addLog('已主動斷線');
+            }
+        }
+
+        // 處理 Enter 鍵
+        function handleEnterKey(event) {
+            if (event.key === 'Enter') {
+                sendEncryptedMessage();
+            }
+        }
+
+        // 添加訊息到聊天記錄
+        function addMessage(message, type) {
+            const messagesContainer = document.getElementById('messages');
+            
+            // 如果是第一條訊息，清空歡迎訊息
+            if (messagesContainer.children.length === 1 && messagesContainer.children[0].style.textAlign === 'center') {
+                messagesContainer.innerHTML = '';
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = message.content;
+            
+            // 如果是錯誤訊息，添加特殊樣式
+            if (message.error) {
+                contentDiv.style.background = '#f8d7da';
+                contentDiv.style.color = '#721c24';
+                contentDiv.style.border = '1px solid #f5c6cb';
+            }
+            
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'message-info';
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.textContent = `${message.senderUsername} • ${new Date(message.timestamp).toLocaleTimeString()}`;
+            
+            infoDiv.appendChild(timeSpan);
+            
+            // 添加加密標誌
+            if (message.encrypted) {
+                const encryptionBadge = document.createElement('span');
+                encryptionBadge.className = 'encryption-badge';
+                encryptionBadge.textContent = message.error ? '🔒❌' : '🔒✓';
+                infoDiv.appendChild(encryptionBadge);
+            }
+            
+            messageDiv.appendChild(contentDiv);
+            messageDiv.appendChild(infoDiv);
+            messagesContainer.appendChild(messageDiv);
+            
+            // 滾動到底部
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 更新連線狀態
+        function updateConnectionStatus(connected) {
+            const statusDiv = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = '已連線';
+                connectBtn.style.display = 'none';
+                disconnectBtn.style.display = 'inline-block';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '未連線';
+                connectBtn.style.display = 'inline-block';
+                disconnectBtn.style.display = 'none';
+            }
+        }
+
+        // 更新加密狀態
+        function updateEncryptionStatus(ready) {
+            const statusDiv = document.getElementById('encryptionStatus');
+            const iconDiv = document.getElementById('encryptionIcon');
+            const textDiv = document.getElementById('encryptionText');
+            
+            if (ready) {
+                statusDiv.className = 'status encrypted';
+                statusDiv.textContent = '🔐 加密已就緒';
+                iconDiv.className = 'encryption-icon encrypted';
+                textDiv.textContent = '端到端加密';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '加密未就緒';
+                iconDiv.className = 'encryption-icon';
+                textDiv.textContent = '未加密';
+            }
+        }
+
+        // 更新線上用戶列表
+        function updateOnlineUsers() {
+            if (!socket) return;
+
+            fetch('/api/users/online')
+                .then(response => response.json())
+                .then(data => {
+                    const onlineUsersDiv = document.getElementById('onlineUsers');
+                    onlineUsersDiv.innerHTML = '';
+                    
+                    if (data.users.length === 0) {
+                        onlineUsersDiv.innerHTML = '<div style="color: #6c757d; font-size: 12px; text-align: center;">尚無線上用戶</div>';
+                        return;
+                    }
+                    
+                    data.users.forEach(user => {
+                        // 不顯示自己
+                        if (currentUser && user.userId === currentUser.userId) {
+                            return;
+                        }
+                        
+                        const userDiv = document.createElement('div');
+                        userDiv.className = 'user-item';
+                        userDiv.onclick = () => selectRecipient(user);
+                        
+                        const nameSpan = document.createElement('span');
+                        nameSpan.textContent = user.username;
+                        
+                        const encryptionSpan = document.createElement('div');
+                        encryptionSpan.className = 'user-encryption encrypted'; // 假設所有用戶都支持加密
+                        
+                        userDiv.appendChild(nameSpan);
+                        userDiv.appendChild(encryptionSpan);
+                        
+                        onlineUsersDiv.appendChild(userDiv);
+                    });
+                })
+                .catch(error => {
+                    addLog('獲取線上用戶失敗', 'error');
+                });
+        }
+
+        // 選擇接收者
+        function selectRecipient(user) {
+            selectedRecipient = user;
+            
+            // 更新UI
+            document.querySelectorAll('.user-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            event.target.closest('.user-item').classList.add('selected');
+            
+            // 更新聊天標題
+            document.getElementById('chatTitle').textContent = `🔐 與 ${user.username} 加密聊天`;
+            
+            addLog(`選擇加密聊天對象：${user.username}`, 'crypto');
+        }
+
+        // 添加日誌
+        function addLog(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            
+            // 限制日誌數量
+            while (logsDiv.children.length > 100) {
+                logsDiv.removeChild(logsDiv.firstChild);
+            }
+        }
+
+        // 頁面載入完成後的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('Brotherhood 加密通訊系統已就緒 (第二階段)');
+            addLog('支援功能：端到端加密、KACLS 密鑰管理', 'crypto');
+            
+            // 定期更新線上用戶列表
+            setInterval(() => {
+                if (socket && currentUser) {
+                    updateOnlineUsers();
+                }
+            }, 5000);
+        });
+
+        // 頁面關閉前斷線
+        window.addEventListener('beforeunload', function() {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>

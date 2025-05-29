@@ -1,0 +1,81 @@
+services:
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: brotherhood-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - message-server
+      - kacls
+    networks:
+      - brotherhood-network
+    restart: unless-stopped
+
+  # Message Server
+  message-server:
+    build:
+      context: ./message-server
+      dockerfile: Dockerfile
+    container_name: brotherhood-message-server
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - KACLS_URL=http://kacls:3002
+    ports:
+      - "3001:3001"
+    networks:
+      - brotherhood-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # KACLS (Key Access Control List Service)
+  kacls:
+    build:
+      context: ./kacls
+      dockerfile: Dockerfile
+    container_name: brotherhood-kacls
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - MASTER_KEY_ID=brotherhood-master-key-2024
+    ports:
+      - "3002:3002"
+    volumes:
+      - kacls-data:/app/data
+    networks:
+      - brotherhood-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis (為未來功能預留)
+  redis:
+    image: redis:7-alpine
+    container_name: brotherhood-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - brotherhood-network
+    restart: unless-stopped
+
+volumes:
+  kacls-data:
+  redis-data:
+
+networks:
+  brotherhood-network:
+    driver: bridge
